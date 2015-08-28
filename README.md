@@ -1,84 +1,68 @@
-# robustMultiTasklssvm 
+# mtlELR 
 
-This package implements the (weighted) LS-SVM and a regularization based multi-task learning with (weighted) LS-SVM (MTL WLS-SVM) algorithms. Instead of using the standard SVM kernel matrix, the randomized feature based kernel  approach in Extreme Logistic Regression  ([ELR](http://link.springer.com/article/10.1007%2Fs11634-014-0194-2)) is implemented. Several robust weight functions such as *Huber, Hample, logistic* and "Myriad* ([De Brabanter et. al](http://link.springer.com/chapter/10.1007%2F978-3-642-04274-4_11) ) are implemented. 
+This is perhaps the first R package for multi-task learning. The package implements the regularized mult-task learning algorithm of [1] using the  Extreme Logistic Regression  ([ELR](http://link.springer.com/article/10.1007%2Fs11634-014-0194-2)).  
 
-For MTL WLS-SVM, the tasks can be classification or regression. If only  one task is specified, then this is simply WLS-VM as implented by the function *lssvm*.   
+The learning tasks can be classification or regression. If only  one task is specified, then this is simply ELR as implented by the function *ELR* in the package https://github.com/nguforche/ELR.   
 
-Full details of the algorithm will (hopefully) appear in [1], a paper submitted to ICDM 2015. More information on the algorithm and parameters will be provided once the review process is over. 
+Full details of the algorithm will appear in [2], a paper accepted in the 
+[IEEE DSAA'2015](http://dsaa2015.lip6.fr/). 
 
-## Why Use  robustMultiTasklssvm  
-  - a simple and very fast LS-SVM algorithm compared to the implementation in the [kernlab](http://cran.r-project.org/web/packages/kernlab/index.html) package  
-  - probably the first implementation o a MTL algorithm in R 
+
+## Why Use  mtlELR 
+  - a simple regularized MTL algorithm that can improve prediction performaance over single task learning  
+  - probably the first implementation of a MTL algorithm in R 
  
 
 ## How to get Started? 
 Install via devtools: 
 
 ```sh
-> devtools::install_github("nguforche/robustMultiTasklssvm")
+> devtools::install_github("nguforche/mtlELR")
 ```
 ## Parameters
-
-The performance of WLS-SVM and MTL WLS-SVM in terms of training time and accuracy  crucially depends on the choice of robust weight function and other parameters as in the ELR algorithm: *p* the dimension of the randomized feature space and *gamma* the regularization constant. The *Logistic*, *Hampel* and *Huber* robust weight functions have been found to produce acceptable results for good choices of *p* and *gamma*. The function *lssvm_gridsearch* implements a grid search for optimal *p* and *gamma* for the WLS-SVM algorithm. Similar implementation can be made for MTl WLS-SVM.  
+The performance of mtlELR in terms of training time and accuracy depends on the choice of *mu* the task similarity parameter, the penalty term *gamma* and *p* the dimension of the randomized feature space of ELR. 
 
 ## Examples
-#### WLS-SVM  
+####   
 ```sh
- library(robustMultiTasklssvm )
- set.seed(12345)
- dat <- SynData()
- dat$key <- ifelse(dat$key ==1, 1, -1) 
- ix = sample(nrow(dat), floor(nrow(dat)*0.75))
- dat.trn = dat[ix, ]
- dat.tst = dat[-ix, ]
- form <- as.formula(paste("key ~ ", paste(names(dat)[!names(dat)%in%"key"], collapse = "+")))
- para <- list( ken = "sigmoid", p = 100, gamma = 10.01, tol = 1e-6, max.iter = 100, robust = TRUE)
- mod <- lssvm(form, dat.trn, para)
- pred <- predict(mod, dat.tst)
- perf <- Performance(pred$prob[,2], dat.tst$key)
- 
-```
-#### MTLWLS-SVM 
-```sh
- set.seed(12345)
- dat <- SynData.lssvm()
+ library(mtlELR )
+  set.seed(12345)
+ dat <- SynData.MultiTaskELR()
  task.type = dat$task.type 
  ix = sample(nrow(dat$dat[[1]]), floor(nrow(dat$dat[[1]])*0.75))
  dd.trn <- lapply(dat$dat, function(y) y[ix, ])
- dd.tst <- lapply(dat$dat, function(y) y[-ix, ])  resp.vars <- sapply(dd.trn, function(x) colnames(x)[1])
+ dd.tst <- lapply(dat$dat, function(y) y[-ix, ])
+ resp.vars <- sapply(dd.trn, function(x) colnames(x)[1])
  rhs.vars <- names(dat$dat[[1]])[-1]
- names(dd.trn) = names(dat.tst) = resp.vars
+ names(dd.trn) = names(dd.tst) = resp.vars
  names(task.type) = resp.vars
- form <- lapply(resp.vars, function(x) as.formula(paste0(paste0(x, "~"),  
-       paste0(rhs.vars, collapse= "+")))) 
+ form <- lapply(resp.vars, function(x) as.formula(paste0(paste0(x, "~"), 
+            paste0(rhs.vars, collapse= "+"))))              
  names(form) = resp.vars
- para <- list( ken = "sigmoid", p = 100, gamma = 10.01, mu = 0.05, tol = 1e-6, 
-            max.iter = 200,weight.fun = list(fun="Logistic"), robust = TRUE )
- 
- mtl.mod <- robustMultiTasklssvm(form, resp.vars, dd.trn, task.type,  para)
+ para <- list( ken = "sigmoid", p = 100, gamma = 10.01, mu = 0.05)
+ mtl.mod <- MultiTaskELR(form, dd.trn, resp.vars, task.type, para)
  pred <- predict(mtl.mod, dd.tst, class.type = "class")
- lapply(resp.vars[task.type == "class"], function(x) 
-           table(true = dd.tst[[x]][, x], pred = pred$class.pred[,x]))
+lapply(resp.vars[task.type == "class"], function(x) 
+        table(true = dd.tst[[x]][, x], pred = pred$class.pred[,x]))
+ require(DMwR)
  lapply(resp.vars[task.type == "regression"], function(x) 
-          regr.eval(dd.tst[[x]][, x], pred$reg.pred[,x]))
-
-```
+           regr.eval(dd.tst[[x]][, x], pred$reg.pred[,x]))
+ ```
 ## Limitations
 
-Currently LS-SVM and MTL LS-SVM are implemented only for binary classification tasks. Training of the MTL algorithm can be slow for large datasets. The primary reason for this is that he kernel matrix is impleneted as a full matrix and the sparseness is not taken advantage of. 
+Currently mtlELR is implemented only for binary classification tasks. Training of the algorithm can be slow for large datasets. The primary reason for this is that the randomized kernel matrix is implemented as a full matrix and sparseness is not taken advantage of. 
 
 ## Todo's
  - implement sparse approximations and solvers 
- - tasks clustering.
- 
+
 ## License
 * GPL(>= 3)
 
 ## References
-  [1] Che Ngufor, Dennis Murphree, Sudhindra Upadhyaya, Daryl J. Kor, 
-    and Jyotishman Pathak. "Robust Multi-task Learning Using Weighted LS-SVM 
-   for Predicting Re-operation due to Bleeding". Submitted to ICDM 2015, 
-  November 14-17, 2015, Atlantic City, NJ USA
+[1] Evgeniou, Theodoros, and Massimiliano Pontil. "Regularized multi--task learning." Proceedings of the tenth ACM SIGKDD international conference on Knowledge discovery and data mining. ACM, 2004.
+
+[2] Che Ngufor, Sudhindra Upadhyaya, Dennis Murphree, Daryl Kor, and Jyotishman Pathak. "Multi-task Learning with Selective Cross-Task Transfer for Predicting Bleeding and other  Important Patient Outcomes" 
+IEEE DSAA'2015 Oct 19-21 Paris, France 
 
 
 
