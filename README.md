@@ -1,91 +1,84 @@
-# ELR Version 0.1 
+# robustMultiTasklssvm 
 
-Extreme Logistic Regression [ELR](http://link.springer.com/article/10.1007%2Fs11634-014-0194-2) is an extension of the Extreme Learning Machine [ELM](http://www.ncbi.nlm.nih.gov/pubmed/21984515) algorithm to kernel logistic regression (KLR). Briefly, the input data is mapped onto a randomized feature space whose dimension can be chosen by the user and the resulting non-linear system can be solved with any existing solver.Two algorithms are implemented in the package: iterative reweighted least-squares ELR (IRLS-ELR) and least-squares ELR (LS-ELR), a simple approximation of the logistic functiom which converts the non-linear system of IRLS-ELR to a linear system. Because the dimension of the randomized feature space can be chosen, the algorithm can be extremely fast to train and scalable to very large data sets.     
+This package implements the (weighted) LS-SVM and a regularization based multi-task learning with (weighted) LS-SVM (MTL WLS-SVM) algorithms. Instead of using the standard SVM kernel matrix, the randomized feature based kernel  approach in Extreme Logistic Regression  ([ELR](http://link.springer.com/article/10.1007%2Fs11634-014-0194-2)) is implemented. Several robust weight functions such as *Huber, Hample, logistic* and "Myriad* ([De Brabanter et. al](http://link.springer.com/chapter/10.1007%2F978-3-642-04274-4_11) ) are implemented. 
 
-## Why Use ELR
-  - simple and efficient 
-  - fast training and testing
-  - outputs class probabilities 
-  - scalable 
-  - very compertative with many state of the arts methods like SVM, KLR, random forest, ELM, neural network, etc.  
+For MTL WLS-SVM, the tasks can be classification or regression. If only  one task is specified, then this is simply WLS-VM as implented by the function *lssvm*.   
+
+Full details of the algorithm will (hopefully) appear in [1], a paper submitted to ICDM 2015. More information on the algorithm and parameters will be provided once the review process is over. 
+
+## Why Use  robustMultiTasklssvm  
+  - a simple and very fast LS-SVM algorithm compared to the implementation in the [kernlab](http://cran.r-project.org/web/packages/kernlab/index.html) package  
+  - probably the first implementation o a MTL algorithm in R 
+ 
 
 ## How to get Started? 
 Install via devtools: 
 
 ```sh
-> devtools::install_github("nguforche/ELR")
+> devtools::install_github("nguforche/robustMultiTasklssvm")
 ```
 ## Parameters
 
-Just like many machine learning algorithms (such as SVM and KLR), generalization performance crucially depends on the choice of turning paramters. However, a major advantage of ELR is that only the regularization parameter *gamma* need to be tuned. Good generalization performance can be obtained by setting the dimension of the randomized feature space *p* large enough (such as *p* >= 1000). Regardless, optimal choices for *gamma* and *p* can be selected by cross-validation. The computational cost of this exercise is often significantly lessen because of the simplicity of the method.   
-
-
+The performance of WLS-SVM and MTL WLS-SVM in terms of training time and accuracy  crucially depends on the choice of robust weight function and other parameters as in the ELR algorithm: *p* the dimension of the randomized feature space and *gamma* the regularization constant. The *Logistic*, *Hampel* and *Huber* robust weight functions have been found to produce acceptable results for good choices of *p* and *gamma*. The function *lssvm_gridsearch* implements a grid search for optimal *p* and *gamma* for the WLS-SVM algorithm. Similar implementation can be made for MTl WLS-SVM.  
 
 ## Examples
-#### Artificial data 
+#### WLS-SVM  
 ```sh
-> library(ELR)
-> set.seed(12345)
-> dat <- SynData() # generate artificial data 
-> ix = sample(nrow(dat), floor(nrow(dat)*0.75))
-> dat.trn = dat[ix, ]
-> dat.tst = dat[-ix, ]
-> form <- as.formula(paste("key ~ ", paste(names(dat)[!names(dat)%in%"key"], collapse = "+")))
-> para <- list( ken = "sigmoid", p = 100, gamma = 10.01)
-> mod <- ELR(form, dat.trn, para, model="LS-ELR")
-> pred <- predict(mod, dat.tst)
-> perf <- Performance(pred$prob[,2], dat.tst$key)
+ library(robustMultiTasklssvm )
+ set.seed(12345)
+ dat <- SynData()
+ dat$key <- ifelse(dat$key ==1, 1, -1) 
+ ix = sample(nrow(dat), floor(nrow(dat)*0.75))
+ dat.trn = dat[ix, ]
+ dat.tst = dat[-ix, ]
+ form <- as.formula(paste("key ~ ", paste(names(dat)[!names(dat)%in%"key"], collapse = "+")))
+ para <- list( ken = "sigmoid", p = 100, gamma = 10.01, tol = 1e-6, max.iter = 100, robust = TRUE)
+ mod <- lssvm(form, dat.trn, para)
+ pred <- predict(mod, dat.tst)
+ perf <- Performance(pred$prob[,2], dat.tst$key)
+ 
+```
+#### MTLWLS-SVM 
+```sh
+ set.seed(12345)
+ dat <- SynData.lssvm()
+ task.type = dat$task.type 
+ ix = sample(nrow(dat$dat[[1]]), floor(nrow(dat$dat[[1]])*0.75))
+ dd.trn <- lapply(dat$dat, function(y) y[ix, ])
+ dd.tst <- lapply(dat$dat, function(y) y[-ix, ])  resp.vars <- sapply(dd.trn, function(x) colnames(x)[1])
+ rhs.vars <- names(dat$dat[[1]])[-1]
+ names(dd.trn) = names(dat.tst) = resp.vars
+ names(task.type) = resp.vars
+ form <- lapply(resp.vars, function(x) as.formula(paste0(paste0(x, "~"),  
+       paste0(rhs.vars, collapse= "+")))) 
+ names(form) = resp.vars
+ para <- list( ken = "sigmoid", p = 100, gamma = 10.01, mu = 0.05, tol = 1e-6, 
+            max.iter = 200,weight.fun = list(fun="Logistic"), robust = TRUE )
+ 
+ mtl.mod <- robustMultiTasklssvm(form, resp.vars, dd.trn, task.type,  para)
+ pred <- predict(mtl.mod, dd.tst, class.type = "class")
+ lapply(resp.vars[task.type == "class"], function(x) 
+           table(true = dd.tst[[x]][, x], pred = pred$class.pred[,x]))
+ lapply(resp.vars[task.type == "regression"], function(x) 
+          regr.eval(dd.tst[[x]][, x], pred$reg.pred[,x]))
 
 ```
-#### Iris Data 
-```sh
-> library(ELR)
-> set.seed(12345)
-> dat$Species <- as.factor(ifelse(dat$Species == "versicolor", 1, 0))
-> plot(dat$Petal.Length, dat$Petal.Width, pch=c(8, 10)[unclass(dat$Species)], 
-    col=c("red", "blue")[unclass(dat$Species)], main="", xlab = "Petal length", 
-    ylab = "Petal Width")
-> ix = sample(nrow(dat), floor(nrow(dat)*0.5))
-> dat.trn = dat[ix, ]
-> dat.tst = dat[-ix, ]
-> form <- as.formula(paste("Species ~ ", paste(names(dat)[!names(dat)%in%"Species"], collapse = "+")))
-> para <- list( ken = "sigmoid", p = 300, gamma = 10.01, tol = 1e-6, max.iter = 100)
-> elr.mod <- ELR(form, dat.trn, para, model="LS-ELR")
-> pred.elr <- predict(elr.mod, dat.tst)
-> perf.elr <- Performance(pred$prob[,2], dat.tst$Species)
-> # logistic regression 
-> glm.mod <- glm(form,data=dat.trn,family=binomial())
-> pred.glm <- predict(glm.mod, dat.tst, type = "response")
-> perf.glm <- Performance(pred.glm, dat.tst$Species)
-> # random forest 
-> require(randomForest)
-> mod.rf <- randomForest(form,  data = dat.trn, ntree = 2000) 	
-> pred.rf <-  predict(mod.rf, newdata = dat.tst, type = "prob") 
-> perf.rf <- Performance(pred.rf[,2], dat.tst$Species)
-```
+## Limitations
 
+Currently LS-SVM and MTL LS-SVM are implemented only for binary classification tasks. Training of the MTL algorithm can be slow for large datasets. The primary reason for this is that he kernel matrix is impleneted as a full matrix and the sparseness is not taken advantage of. 
 
-## Limitations/Bugs 
-
-Currently only for binary classification tasks. However, it should not be too hard to extend to multi-class. There is a variational Bayes implementation of the algorithm for multi-class, I just haven't got arround to code it up into a package. Send me an email if your are interested in working on it. 
-
-As this is the first version of the package, I wont be supprise if you find tons of bugs :). Please let me know here or through email if you find any issues. 
-
-
-### Todo's
- - Write package for multi-class
- - Add more examples and code comments
+## Todo's
+ - implement sparse approximations and solvers 
+ - tasks clustering.
  
 ## License
 * GPL(>= 3)
 
 ## References
- * Ngufor, Che, and Janusz Wojtusiak. "Extreme logistic regression." 
- Advances in Data Analysis and Classification (2015): 1-26.
-
-
-[1]: http://example.com/ "Title"
-
+  [1] Che Ngufor, Dennis Murphree, Sudhindra Upadhyaya, Daryl J. Kor, 
+    and Jyotishman Pathak. "Robust Multi-task Learning Using Weighted LS-SVM 
+   for Predicting Re-operation due to Bleeding". Submitted to ICDM 2015, 
+  November 14-17, 2015, Atlantic City, NJ USA
 
 
 
