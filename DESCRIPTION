@@ -1,0 +1,24 @@
+Package: MultiTaskELR
+Title: Robust Multitask Learning with LS-SVM 
+Version: 0.1.0
+Author: c(person("Che", "Ngufor", , "Ngufor.Che@mayo.edu", role = c("aut", "cre")), 
+    person("Dennis", "Murphree", , "Murphree.Dennis@mayo.edu", role = c("aut")), 
+    person("Sudhindra", "Upadhyaya", , "Upadhyaya.Sudhindra@mayo.edu", role = c("aut")), 
+    person("Daryl", "Kor", , "Kor.Daryl@mayo.edu", role = c("aut")),
+    person("Jyotishman", "Pathak", , "Pathak.Jyotishman@mayo.edu", role = c("aut")))
+Maintainer: Che Ngufor <Ngufor.Che@mayo.edu>    
+Description: A regularization based multi task learning algorithm using 
+    the extreme logistic regression algorithm for classification tasks and/or 
+    extreme learning machine for regression tasks. 
+Depends: R (>= 3.1.2), 
+    matrixcalc, 
+    MASS, 
+    mvtnorm
+Imports:
+    ELR,   
+    Matrix
+License: GPL(>= 3)
+LazyData: true
+NeedsCompilation: no
+
+
